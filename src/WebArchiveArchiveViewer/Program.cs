@@ -20,6 +20,7 @@ namespace WebArchiveArchiveViewer
 
             var basePath = args[0]; // C:\Temp\wayback\websites
             var uriPrefix = args[1]; // http://+:8080/
+            var replaceUri = args[2]; // http://localhost:8080/
 
             var listener = new HttpListener();
             listener.Prefixes.Add(uriPrefix);
@@ -59,7 +60,7 @@ namespace WebArchiveArchiveViewer
                     if (filePath.EndsWith(".html") || filePath.EndsWith(".htm"))
                     {
                         context.Response.AddHeader("Content-Type", "text/html");
-                        fileContent = Encoding.UTF8.GetBytes(FixLinks(Encoding.UTF8.GetString(fileContent), $"{context.Request.Url.Scheme}://{context.Request.Url.Authority}/"));
+                        fileContent = Encoding.UTF8.GetBytes(FixLinks(Encoding.UTF8.GetString(fileContent), replaceUri));
                     }
 
                     context.Response.AddHeader("Cache-Control", "public, max-age=86400");
