@@ -20,7 +20,7 @@ namespace WebArchiveArchiveViewer
 
             var basePath = args[0]; // C:\Temp\wayback\websites
             var uriPrefix = args[1]; // http://+:8080/
-            var replaceUri = args[2]; // http://localhost:8080/
+            var replaceUriConfigured = args.Length > 2 ? args[2] : null; // (optional) http://localhost:8080/
 
             var listener = new HttpListener();
             listener.Prefixes.Add(uriPrefix);
@@ -32,7 +32,8 @@ namespace WebArchiveArchiveViewer
                 try
                 {
                     var context = listener.GetContext();
-                    var path = context.Request.Url.AbsolutePath;
+                    var requestUrl = context.Request.Url;
+                    var path = requestUrl.AbsolutePath;
 
                     var match = regex.Match(path);
                     if (!match.Success)
@@ -42,6 +43,19 @@ namespace WebArchiveArchiveViewer
                         context.Response.Close();
                         continue;
                     }
+
+                    string replaceUri;
+                    if (replaceUriConfigured == null)
+                    {
+                        var replaceProto = context.Request.Headers["X-Forwarded-Proto"] ?? requestUrl.Scheme;
+                        var replaceHost = context.Request.Headers["X-Forwarded-Host"] ?? context.Request.UserHostAddress;
+                        replaceUri = $"{replaceProto}://{replaceHost}/";
+                    }
+                    else
+                    {
+                        replaceUri = replaceUriConfigured;
+                    }
+
 
                     var filePath = GetFilePath(basePath, match.Groups[1].Value, match.Groups[2].Value, new DateTime(2014, 01, 01));
 
