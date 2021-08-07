@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -20,7 +21,8 @@ namespace WebArchiveArchiveViewer
 
             var basePath = args[0]; // C:\Temp\wayback\websites
             var uriPrefix = args[1]; // http://+:8080/
-            var replaceUriConfigured = args.Length > 2 ? args[2] : null; // (optional) http://localhost:8080/
+            var maxDate = DateTime.Parse(args[2], CultureInfo.InvariantCulture); // 2014-01-01
+            var replaceUriConfigured = args.Length > 3 ? args[3] : null; // (optional) http://localhost:8080/
 
             var listener = new HttpListener();
             listener.Prefixes.Add(uriPrefix);
@@ -57,7 +59,7 @@ namespace WebArchiveArchiveViewer
                     }
 
 
-                    var filePath = GetFilePath(basePath, match.Groups[1].Value, match.Groups[2].Value, new DateTime(2014, 01, 01));
+                    var filePath = GetFilePath(basePath, match.Groups[1].Value, match.Groups[2].Value, maxDate);
 
                     if (filePath == null)
                     {

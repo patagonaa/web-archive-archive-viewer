@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     image: web-archive-archive-viewer
     build: .
-    command: '/websites http://+:8080/'
+    command: '/websites http://+:8080/ 2099-12-31'
     ports:
       - 8080:8080
     volumes:
