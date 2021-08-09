@@ -35,16 +35,19 @@ namespace WebArchiveArchiveViewer
                 {
                     var context = listener.GetContext();
                     var requestUrl = context.Request.Url;
-                    var path = requestUrl.AbsolutePath;
+                    var rawPath = requestUrl.PathAndQuery;
 
-                    var match = regex.Match(path);
+                    var match = regex.Match(rawPath);
                     if (!match.Success)
                     {
-                        Console.WriteLine($"{context.Request.HttpMethod} {path} 404");
+                        Console.WriteLine($"{context.Request.HttpMethod} {rawPath} 404");
                         context.Response.StatusCode = 404;
                         context.Response.Close();
                         continue;
                     }
+
+                    var host = match.Groups[1].Value;
+                    var path = match.Groups[2].Value;
 
                     string replaceUri;
                     if (replaceUriConfigured == null)
@@ -59,7 +62,7 @@ namespace WebArchiveArchiveViewer
                     }
 
 
-                    var filePath = GetFilePath(basePath, match.Groups[1].Value, match.Groups[2].Value, maxDate);
+                    var filePath = GetFilePath(basePath, host, path, maxDate);
 
                     if (filePath == null)
                     {
@@ -76,7 +79,7 @@ namespace WebArchiveArchiveViewer
                     if (filePath.EndsWith(".html") || filePath.EndsWith(".htm"))
                     {
                         context.Response.AddHeader("Content-Type", "text/html");
-                        fileContent = Encoding.UTF8.GetBytes(FixLinks(Encoding.UTF8.GetString(fileContent), replaceUri));
+                        fileContent = Encoding.UTF8.GetBytes(FixLinks(Encoding.UTF8.GetString(fileContent), replaceUri, path));
                     }
 
                     context.Response.AddHeader("Cache-Control", "public, max-age=86400");
@@ -119,6 +122,7 @@ namespace WebArchiveArchiveViewer
             var cleanedHost = match.Groups[1].Value.ToLowerInvariant();
 
             var windowsPortSeperator = (char)61498;
+            var windowsQuerySeperator = (char)61503;
 
             var hostVariants = new[] {
                 cleanedHost,
@@ -146,6 +150,11 @@ namespace WebArchiveArchiveViewer
                 {
                     return filePath;
                 }
+                filePath = Path.Combine(scrapeDirectory, path.Replace('?', windowsQuerySeperator));
+                if (File.Exists(filePath))
+                {
+                    return filePath;
+                }
             }
 
             foreach (var scrapeDirectory in directoriesDesc.Where(x => DateTime.ParseExact(x.Split('/', '\\').Last(), "yyyyMMddHHmmss", null) > maxDate).Reverse())
@@ -160,9 +169,15 @@ namespace WebArchiveArchiveViewer
             return null;
         }
 
-        private static string FixLinks(string html, string uriPrefix)
+        private static string FixLinks(string html, string uriPrefix, string host)
         {
-            return html.Replace("http://", uriPrefix);
+            return html
+                .Replace("http://", uriPrefix)
+                .Replace("https://", uriPrefix)
+                .Replace(@"=""//", $@"=""{uriPrefix}{host}/")
+                .Replace(@"=""/", $@"=""{uriPrefix}{host}/")
+                .Replace(@"='//", $@"='{uriPrefix}{host}/")
+                .Replace(@"='/", $@"='{uriPrefix}{host}/");
         }
     }
 }
