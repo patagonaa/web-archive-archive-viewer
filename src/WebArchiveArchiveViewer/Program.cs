@@ -21,7 +21,7 @@ namespace WebArchiveArchiveViewer
 
             var basePath = args[0]; // C:\Temp\wayback\websites
             var uriPrefix = args[1]; // http://+:8080/
-            var maxDate = DateTime.Parse(args[2], CultureInfo.InvariantCulture); // 2014-01-01
+            var targetDate = DateTime.Parse(args[2], CultureInfo.InvariantCulture); // 2014-01-01
             var replaceUriConfigured = args.Length > 3 ? args[3] : null; // (optional) http://localhost:8080/
 
             var listener = new HttpListener();
@@ -53,7 +53,7 @@ namespace WebArchiveArchiveViewer
                     if (replaceUriConfigured == null)
                     {
                         var replaceProto = context.Request.Headers["X-Forwarded-Proto"] ?? requestUrl.Scheme;
-                        var replaceHost = context.Request.Headers["X-Forwarded-Host"] ?? context.Request.UserHostAddress;
+                        var replaceHost = context.Request.Headers["X-Forwarded-Host"] ?? context.Request.UserHostName;
                         replaceUri = $"{replaceProto}://{replaceHost}/";
                     }
                     else
@@ -62,7 +62,7 @@ namespace WebArchiveArchiveViewer
                     }
 
 
-                    var filePath = GetFilePath(basePath, host, path, maxDate);
+                    var filePath = GetFilePath(basePath, host, path, targetDate);
 
                     if (filePath == null)
                     {
@@ -79,7 +79,7 @@ namespace WebArchiveArchiveViewer
                     if (filePath.EndsWith(".html") || filePath.EndsWith(".htm"))
                     {
                         context.Response.AddHeader("Content-Type", "text/html");
-                        fileContent = Encoding.UTF8.GetBytes(FixLinks(Encoding.UTF8.GetString(fileContent), replaceUri, path));
+                        fileContent = Encoding.UTF8.GetBytes(FixLinks(Encoding.UTF8.GetString(fileContent), replaceUri, host));
                     }
 
                     context.Response.AddHeader("Cache-Control", "public, max-age=86400");
@@ -106,7 +106,7 @@ namespace WebArchiveArchiveViewer
             }
         }
 
-        private static string GetFilePath(string basePath, string host, string path, DateTime maxDate)
+        private static string GetFilePath(string basePath, string host, string path, DateTime targetDate)
         {
             if (string.IsNullOrEmpty(path.Trim('/')))
             {
@@ -143,7 +143,11 @@ namespace WebArchiveArchiveViewer
 
             var directoriesDesc = directories.OrderByDescending(x => x.Split('/', '\\').Last());
 
-            foreach (var scrapeDirectory in directoriesDesc.Where(x => DateTime.ParseExact(x.Split('/', '\\').Last(), "yyyyMMddHHmmss", null) <= maxDate))
+            var closestBeforeTarget = directoriesDesc.Where(x => DateTime.ParseExact(x.Split('/', '\\').Last(), "yyyyMMddHHmmss", null) <= targetDate);
+            var closestAfterTarget = directoriesDesc.Where(x => DateTime.ParseExact(x.Split('/', '\\').Last(), "yyyyMMddHHmmss", null) > targetDate).Reverse();
+            var searchDirs = closestBeforeTarget.Concat(closestAfterTarget);
+
+            foreach (var scrapeDirectory in searchDirs)
             {
                 var filePath = Path.Combine(scrapeDirectory, path);
                 if (File.Exists(filePath))
@@ -157,27 +161,14 @@ namespace WebArchiveArchiveViewer
                 }
             }
 
-            foreach (var scrapeDirectory in directoriesDesc.Where(x => DateTime.ParseExact(x.Split('/', '\\').Last(), "yyyyMMddHHmmss", null) > maxDate).Reverse())
-            {
-                var filePath = Path.Combine(scrapeDirectory, path);
-                if (File.Exists(filePath))
-                {
-                    return filePath;
-                }
-            }
-
             return null;
         }
 
         private static string FixLinks(string html, string uriPrefix, string host)
         {
-            return html
-                .Replace("http://", uriPrefix)
-                .Replace("https://", uriPrefix)
-                .Replace(@"=""//", $@"=""{uriPrefix}{host}/")
-                .Replace(@"=""/", $@"=""{uriPrefix}{host}/")
-                .Replace(@"='//", $@"='{uriPrefix}{host}/")
-                .Replace(@"='/", $@"='{uriPrefix}{host}/");
+            html = Regex.Replace(html, @"(https?:\/\/)", uriPrefix);
+            html = Regex.Replace(html, @"(=[""'])(\/[^\/])", $"$1{uriPrefix}{host}$2");
+            return html;
         }
     }
 }
