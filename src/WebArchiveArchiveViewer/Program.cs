@@ -154,10 +154,22 @@ namespace WebArchiveArchiveViewer
                 {
                     return filePath;
                 }
-                filePath = Path.Combine(scrapeDirectory, path.Replace('?', windowsQuerySeperator));
-                if (File.Exists(filePath))
+                if (filePath.Contains('?'))
                 {
-                    return filePath;
+                    if (File.Exists(filePath.Replace('?', windowsQuerySeperator)))
+                    {
+                        return filePath;
+                    }
+
+                    var dir = Path.GetDirectoryName(filePath);
+                    var file = Path.GetFileName(filePath);
+
+                    if (Directory.Exists(dir))
+                    {
+                        var foundFiles = Directory.GetFiles(dir, file.Split('?')[0] + "*", SearchOption.TopDirectoryOnly);
+                        if (foundFiles.Length > 0)
+                            return foundFiles[0];
+                    }
                 }
             }
 
@@ -167,7 +179,7 @@ namespace WebArchiveArchiveViewer
         private static string FixLinks(string html, string uriPrefix, string host)
         {
             html = Regex.Replace(html, @"(https?:\/\/)", uriPrefix);
-            html = Regex.Replace(html, @"(=[""'])(\/[^\/])", $"$1{uriPrefix}{host}$2");
+            html = Regex.Replace(html, @"(=[""'])(\/[^\/])", $"$1{uriPrefix + host}$2");
             return html;
         }
     }
